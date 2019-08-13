@@ -23,19 +23,26 @@ namespace fs = std::filesystem;
 
 constexpr int32 OneGB = 1048576000;
 
+typedef long long int64;
+typedef unsigned long long uint64;
+
+#define VOB_EXTENSION ".VOB"
+#define VOB_OUTPUT_NAME "outputVideo.vob"
+#define MP4_OUPUT_NAME "finalVideo.mp4"
+
 template<typename ArrayType>
 struct FTempArray
 {
 	FTempArray() : Pointer(nullptr), Num(0) { }
-	FTempArray(const uint32& NewSize) : Num(NewSize) { Pointer = new ArrayType[NewSize]; }
+	FTempArray(const int64& NewSize) : Num(NewSize) { Pointer = new ArrayType[NewSize]; }
 	//~FTempArray() { if (IsValid(Pointer)) { delete[] Pointer; } }
 
 	void Reset() { if (IsValid(Pointer)) { delete[] Pointer; } Num = 0; }
 	bool IsEmpty() const { return (Num <= 0); }
 
-	bool IsValidIndex(const uint32& i) const { return (i >= 0) && (i < Num); }
-	ArrayType& operator[](const uint32& i) { return Pointer[i]; }
-	const ArrayType& operator[](const uint32& i) const { return Pointer[i]; }
+	bool IsValidIndex(const int64& i) const { return (i >= 0) && (i < Num); }
+	ArrayType& operator[](const int64& i) { return Pointer[i]; }
+	const ArrayType& operator[](const int64& i) const { return Pointer[i]; }
 
 	void Add(const ArrayType& newElement)
 	{
@@ -51,7 +58,7 @@ struct FTempArray
 		if (IsValid(Pointer))
 		{
 			delete[] Pointer;
-		}
+		};
 
 		Pointer = resultPtr;
 	}
@@ -84,26 +91,45 @@ struct FTempArray
 	}
 
 	ArrayType* Pointer;
-	uint32 Num;
+	int64 Num;
 };
 
-FTempArray<char> CopyToMemory(const FString& Filename)
+void CopyToFile(const FString& FromFile, ofstream& ToFile)
 {
-	streampos size;
-	FTempArray<char> memArray;
-
-	ifstream file((char*)Filename, ios::in | ios::binary | ios::ate);
+	ifstream file((char*)FromFile, ios::binary);
 	if (file.is_open())
 	{
-		size = file.tellg();
-		memArray.Pointer = new char[size];
-		file.seekg(0, ios::beg);
-		file.read(memArray.Pointer, size);
+		ToFile << file.rdbuf();
+
 		file.close();
 	}
 
-	return memArray;
+	// 	ifstream input("C:\\Final.gif", ios::binary);
+	// 	ofstream output("C:\\myfile.gif", ios::binary);
+	// 
+	// 	copy(
+	// 		istreambuf_iterator<char>(input),
+	// 		istreambuf_iterator<char>(),
+	// 		ostreambuf_iterator<char>(output));
 }
+
+// FTempArray<char> CopyToMemory(const FString& Filename)
+// {
+// 	FTempArray<char> memArray;
+// 
+// 	ifstream file((char*)Filename, ios::binary);
+// 	if (file.is_open())
+// 	{
+// 		file.seekg(0, file.end);
+// 		int64 size = file.tellg();
+// 		memArray = FTempArray<char>(size);
+// 		file.seekg(0);
+// 		file.read(memArray.Pointer, size);
+// 		file.close();
+// 	}
+// 
+// 	return memArray;
+// }
 
 FString CreateOutputVideo(const FString& DirectoryPath)
 {
@@ -116,30 +142,30 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 		return resultPath;
 	}
 
-	path /= "outputVideo.vob";
+	path /= VOB_OUTPUT_NAME;
 	fs::create_directories(path.parent_path());
 
-	ofstream resultFile(path);
+	ofstream resultFile(path, ios::binary);
 
 	for (const auto& entry : fs::directory_iterator((char*)DirectoryPath))
 	{
-		if (entry.path().extension() == ".VOB" && fs::file_size(entry.path()) >= OneGB)
+		if (entry.path().extension() == VOB_EXTENSION && fs::file_size(entry.path()) >= OneGB)
 		{
-			LogMsg((char*)(entry.path().string().data()));
+			FString filename = DirectoryPath;
+			filename += "/";
+			filename += (char*)(entry.path().filename().string().data());
 
-			FTempArray<char> memArray = CopyToMemory((char*)(entry.path().string().data()));
-			if (!memArray.IsEmpty())
-			{
-				resultFile << (char*)(memArray.Pointer);
-			}
+			LogMsg(filename);
 
-			memArray.Reset();
+			CopyToFile(filename, resultFile);
 		}
 	}
 
 	resultFile.close();
 
-	resultPath = (char*)(path.string().data());
+	resultPath = DirectoryPath;
+	resultPath += "/";
+	resultPath += VOB_OUTPUT_NAME;
 	return resultPath;
 
 // 	FString command = "forfiles / P";
@@ -151,7 +177,7 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 void ConvertFile(const FString& Filename)
 {
 	// Create a muxer that will output the video as MP4.
-	Muxer* muxer = new Muxer(Filename);
+	Muxer* muxer = new Muxer(MP4_OUPUT_NAME);
 
 	// Create a MPEG2 codec that will encode the raw data.
 	VideoCodec* codec = new VideoCodec(AV_CODEC_ID_H264);
@@ -166,7 +192,7 @@ void ConvertFile(const FString& Filename)
 
 	// Load a container. Pick the best video stream container in the container
 	// And send it to the filter.
-	Demuxer* demuxer = new Demuxer("finalFilm.mp4");
+	Demuxer* demuxer = new Demuxer(Filename);
 	demuxer->DecodeBestVideoStream(encoder);
 
 	// Prepare the output pipeline.
@@ -196,7 +222,7 @@ int main(void)
 
 	LogWait();
 
-	FString filename = CreateOutputVideo("TestData/VIDEO_TS");
+	FString filename = CreateOutputVideo("C:/Users/KrisFis/Desktop/Debug/TestData/VIDEO_TS");
 	if (filename.IsEmpty())
 	{
 		LogMsg("Nothing was found");
@@ -214,3 +240,7 @@ int main(void)
 
 	return 0;
 }
+
+#undef VOB_EXTENSION
+#undef VOB_OUTPUT_NAME
+#undef MP4_OUPUT_NAME
