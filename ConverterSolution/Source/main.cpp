@@ -130,8 +130,6 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 			FTempArray<char> memArray = CopyToMemory((char*)(entry.path().string().data()));
 			if (!memArray.IsEmpty())
 			{
-				ENSURE_VALID(memArray.Pointer);
-
 				resultFile << (char*)(memArray.Pointer);
 			}
 
