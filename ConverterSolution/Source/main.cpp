@@ -26,6 +26,7 @@ constexpr int32 OneGB = 1048576000;
 typedef long long int64;
 typedef unsigned long long uint64;
 
+#define PARENT_DIRECTORY_NAME "VIDEO_TS"
 #define VOB_EXTENSION ".VOB"
 #define VOB_OUTPUT_NAME "outputVideo.vob"
 #define MP4_OUPUT_NAME "finalVideo.mp4"
@@ -131,50 +132,7 @@ void CopyToFile(const FString& FromFile, ofstream& ToFile)
 // 	return memArray;
 // }
 
-FString CreateOutputVideo(const FString& DirectoryPath)
-{
-	FString resultPath = FString::Empty;
-
-	fs::path path{ (char*)(DirectoryPath) };
-
-	if(!fs::is_directory(path))
-	{
-		return resultPath;
-	}
-
-	path /= VOB_OUTPUT_NAME;
-	fs::create_directories(path.parent_path());
-
-	ofstream resultFile(path, ios::binary);
-
-	for (const auto& entry : fs::directory_iterator((char*)DirectoryPath))
-	{
-		if (entry.path().extension() == VOB_EXTENSION && fs::file_size(entry.path()) >= OneGB)
-		{
-			FString filename = DirectoryPath;
-			filename += "/";
-			filename += (char*)(entry.path().filename().string().data());
-
-			LogMsg(filename);
-
-			CopyToFile(filename, resultFile);
-		}
-	}
-
-	resultFile.close();
-
-	resultPath = DirectoryPath;
-	resultPath += "/";
-	resultPath += VOB_OUTPUT_NAME;
-	return resultPath;
-
-// 	FString command = "forfiles / P";
-// 	command += FilePath;
-// 	command += "/ M * .vob / C \"CMD /C if @fsize gtr 1048576000 echo @PATH";
-// 	system(command);
-}
-
-void ConvertFile(const FString& Filename)
+void ConvertFileToMP4(const FString& Filename)
 {
 	// Create a muxer that will output the video as MP4.
 	Muxer* muxer = new Muxer(MP4_OUPUT_NAME);
@@ -202,7 +160,6 @@ void ConvertFile(const FString& Filename)
 	// Push all the remaining frames through.
 	while (!demuxer->IsDone())
 	{
-		LogMsg("Doing step..");
 		demuxer->Step();
 	}
 
@@ -216,23 +173,98 @@ void ConvertFile(const FString& Filename)
 	delete demuxer;
 }
 
+FString CreateOutputVideo(const FString& DirectoryPath)
+{
+	FString resultPath = FString::Empty;
+
+	fs::path path{ (char*)(DirectoryPath) };
+
+	if(!fs::is_directory(path))
+	{
+		return resultPath;
+	}
+
+	path /= VOB_OUTPUT_NAME;
+	fs::create_directories(path.parent_path());
+
+	ofstream resultFile(path, ios::binary);
+
+	bool forceUse = false;
+
+	for (const auto& entry : fs::directory_iterator((char*)DirectoryPath))
+	{
+		if (entry.path().extension() == VOB_EXTENSION)
+		{
+			if (fs::file_size(entry.path()) >= OneGB)
+			{
+				FString filename = DirectoryPath;
+				filename += "/";
+				filename += (char*)(entry.path().filename().string().data());
+
+				LogMsg(filename);
+
+				CopyToFile(filename, resultFile);
+
+				forceUse = true;
+			}
+		}
+		else
+		{
+			forceUse = false;
+		}
+	}
+
+	resultFile.close();
+
+	resultPath = DirectoryPath;
+	resultPath += "/";
+	resultPath += VOB_OUTPUT_NAME;
+	return resultPath;
+
+// 	FString command = "forfiles / P";
+// 	command += FilePath;
+// 	command += "/ M * .vob / C \"CMD /C if @fsize gtr 1048576000 echo @PATH";
+// 	system(command);
+}
+
+void RecursiveFindAndExecute(const FString& PWD)
+{
+	for (const auto& entry : fs::directory_iterator((char*)PWD))
+	{
+		if (fs::is_directory(entry.path()))
+		{
+			FString directoryName = (char*)(entry.path().string().data());
+
+			if (directoryName != PARENT_DIRECTORY_NAME)
+			{
+				RecursiveFindAndExecute(directoryName);
+			}
+			else
+			{
+				FString finalFileName = CreateOutputVideo(directoryName);
+				if (finalFileName.IsEmpty())
+				{
+
+					return;
+				}
+
+				ConvertFileToMP4(finalFileName);
+
+#ifdef _RELEASE
+				fs::remove({ (char*)finalFileName });
+#endif
+			}
+		}
+	}
+}
+
 int main(void)
 {
 	LogMsg("Press enter to proceed to Test...");
 
 	LogWait();
 
-	FString filename = CreateOutputVideo("C:/Users/KrisFis/Desktop/Debug/TestData/VIDEO_TS");
-	if (filename.IsEmpty())
-	{
-		LogMsg("Nothing was found");
-
-		LogWait();
-
-		return 1;
-	}
-
-	ConvertFile(filename);
+	RecursiveFindAndExecute("./");
 
 	LogMsg("Converting has been done..");
 
@@ -241,6 +273,7 @@ int main(void)
 	return 0;
 }
 
+#undef DIRECTORY_NAME
 #undef VOB_EXTENSION
 #undef VOB_OUTPUT_NAME
 #undef MP4_OUPUT_NAME
