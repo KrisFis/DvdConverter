@@ -31,69 +31,8 @@ typedef unsigned long long uint64;
 #define VOB_OUTPUT_NAME "outputVideo.vob"
 #define MP4_OUPUT_NAME "finalVideo.mp4"
 
-template<typename ArrayType>
-struct FTempArray
-{
-	FTempArray() : Pointer(nullptr), Num(0) { }
-	FTempArray(const int64& NewSize) : Num(NewSize) { Pointer = new ArrayType[NewSize]; }
-	//~FTempArray() { if (IsValid(Pointer)) { delete[] Pointer; } }
-
-	void Reset() { if (IsValid(Pointer)) { delete[] Pointer; } Num = 0; }
-	bool IsEmpty() const { return (Num <= 0); }
-
-	bool IsValidIndex(const int64& i) const { return (i >= 0) && (i < Num); }
-	ArrayType& operator[](const int64& i) { return Pointer[i]; }
-	const ArrayType& operator[](const int64& i) const { return Pointer[i]; }
-
-	void Add(const ArrayType& newElement)
-	{
-		ArrayType* resultPtr = new ArrayType[Num + 1];
-
-		for (int32 i = 0; i < Num + 1; ++i)
-		{
-			resultPtr[i] = Pointer[i];
-		}
-
-		resultPtr[++Num] = newElement;
-
-		if (IsValid(Pointer))
-		{
-			delete[] Pointer;
-		};
-
-		Pointer = resultPtr;
-	}
-
-	void Append(const FTempArray& OtherArray)
-	{
-		if (OtherArray.Num <= 0) return;
-
-		ENSURE_VALID(OtherArray.Pointer);
-
-		ArrayType* resultPtr = new ArrayType[Num + OtherArray.Num];
-
-		for (int32 i = 0; i < Num; ++i)
-		{
-			resultPtr[i] = Pointer[i];
-		}
-
-		if (IsValid(Pointer))
-		{
-			delete[] Pointer;
-		}
-
-		for (int32 i = Num; i < (Num + OtherArray.Num); ++i)
-		{
-			resultPtr[i] = OtherArray[i];
-		}
-
-		Pointer = resultPtr;
-		Num += OtherArray.Num;
-	}
-
-	ArrayType* Pointer;
-	int64 Num;
-};
+uint16 NumberOfPackedVideos = 0;
+uint16 NumberOfConvertedVideos = 0;
 
 void CopyToFile(const FString& FromFile, ofstream& ToFile)
 {
@@ -104,72 +43,33 @@ void CopyToFile(const FString& FromFile, ofstream& ToFile)
 
 		file.close();
 	}
-
-	// 	ifstream input("C:\\Final.gif", ios::binary);
-	// 	ofstream output("C:\\myfile.gif", ios::binary);
-	// 
-	// 	copy(
-	// 		istreambuf_iterator<char>(input),
-	// 		istreambuf_iterator<char>(),
-	// 		ostreambuf_iterator<char>(output));
 }
-
-// FTempArray<char> CopyToMemory(const FString& Filename)
-// {
-// 	FTempArray<char> memArray;
-// 
-// 	ifstream file((char*)Filename, ios::binary);
-// 	if (file.is_open())
-// 	{
-// 		file.seekg(0, file.end);
-// 		int64 size = file.tellg();
-// 		memArray = FTempArray<char>(size);
-// 		file.seekg(0);
-// 		file.read(memArray.Pointer, size);
-// 		file.close();
-// 	}
-// 
-// 	return memArray;
-// }
 
 void ConvertFileToMP4(const FString& Filename)
 {
-	// Create a muxer that will output the video as MP4.
 	Muxer* muxer = new Muxer(MP4_OUPUT_NAME);
 
-	// Create a MPEG2 codec that will encode the raw data.
 	VideoCodec* codec = new VideoCodec(AV_CODEC_ID_H264);
 
-	// Create an encoder that will encode the raw audio data using the codec specified above.
-	// Tie it to the muxer so it will be written to file.
 	VideoEncoder* encoder = new VideoEncoder(codec, muxer);
 
-	// Create a video filter and do some funny stuff with the video data.
-	// "scale=640:150,transpose=cclock,vignette"
-	// Filter* filter = new Filter("scale=1:1", encoder);
-
-	// Load a container. Pick the best video stream container in the container
-	// And send it to the filter.
 	Demuxer* demuxer = new Demuxer(Filename);
 	demuxer->DecodeBestVideoStream(encoder);
 
-	// Prepare the output pipeline.
-	// This will decode a small amount of frames so the pipeline can configure itself.
 	demuxer->PreparePipeline();
 
-	// Push all the remaining frames through.
 	while (!demuxer->IsDone())
 	{
 		demuxer->Step();
 	}
 
-	// Save everything to disk by closing the muxer.
 	muxer->Close();
+
+	++NumberOfConvertedVideos;
 
 	delete muxer;
 	delete codec;
 	delete encoder;
-	//delete filter;
 	delete demuxer;
 }
 
@@ -204,7 +104,6 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 				LogMsg(filename);
 
 				CopyToFile(filename, resultFile);
-
 				forceUse = true;
 			}
 		}
@@ -215,16 +114,12 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 	}
 
 	resultFile.close();
+	++NumberOfPackedVideos;
 
 	resultPath = DirectoryPath;
 	resultPath += "/";
 	resultPath += VOB_OUTPUT_NAME;
 	return resultPath;
-
-// 	FString command = "forfiles / P";
-// 	command += FilePath;
-// 	command += "/ M * .vob / C \"CMD /C if @fsize gtr 1048576000 echo @PATH";
-// 	system(command);
 }
 
 void RecursiveFindAndExecute(const FString& PWD)
@@ -241,15 +136,21 @@ void RecursiveFindAndExecute(const FString& PWD)
 			}
 			else
 			{
+				cout << "Nalezeno nove DVD pro konverzi se jmenem: " << PWD << endl;
+				cout << endl;
+				cout << "Vytvareni jednotneho DVD balicku" << endl;
+
 				FString finalFileName = CreateOutputVideo(directoryName);
 				if (finalFileName.IsEmpty())
 				{
-
 					return;
 				}
 
+				cout << "Vytvareni MP4 z nove vytvoreneho balicku DVD" << endl;
 				ConvertFileToMP4(finalFileName);
 
+				cout << "Mazani vytvoreneho balicku DVD" << endl;
+				cout << endl;
 #ifdef _RELEASE
 				fs::remove({ (char*)finalFileName });
 #endif
@@ -260,20 +161,35 @@ void RecursiveFindAndExecute(const FString& PWD)
 
 int main(void)
 {
-	LogMsg("Press enter to proceed to Test...");
-
-	LogWait();
+	cout << "Start programu.." << endl;
+	cout << endl;
+	cout << "Hledani slozek s DVD zaznamy.." << endl;
+	cout << endl;
 
 	RecursiveFindAndExecute("./");
 
-	LogMsg("Converting has been done..");
+	cout << "Veskere DVD formaty byly nalezeny" << endl;
+	cout << "Konec hledani.." << endl;
+	cout << "---------------------" << endl;
+
+	cout << endl;
+	cout << "Pocet sbalenych DVD zaznamu: " << NumberOfConvertedVideos << " !" << endl;
+	cout << "Pocet vytvorenych MP4: " << NumberOfConvertedVideos << " !" << endl;
+	cout << endl;
+	cout << endl;
+
+	cout << "V pripade chyb nebo problemu urcite napis nebo zavolej" << endl;
+	cout << "Jan Kristian Fisera" << endl;
+	cout << "Tel: 775569889" << endl;
+	cout << "Email: krisfis@email.cz" << endl;
+	cout << endl;
 
 	LogWait();
 
 	return 0;
 }
 
-#undef DIRECTORY_NAME
+#undef PARENT_DIRECTORY_NAME
 #undef VOB_EXTENSION
 #undef VOB_OUTPUT_NAME
 #undef MP4_OUPUT_NAME
