@@ -29,10 +29,32 @@ typedef unsigned long long uint64;
 #define PARENT_DIRECTORY_NAME "VIDEO_TS"
 #define VOB_EXTENSION ".VOB"
 #define VOB_OUTPUT_NAME "outputVideo.vob"
-#define MP4_OUPUT_NAME "finalVideo.mp4"
 
 uint16 NumberOfPackedVideos = 0;
 uint16 NumberOfConvertedVideos = 0;
+
+FString GetLastPart(const fs::path& Path)
+{
+	if (fs::is_directory(Path))
+	{
+		return (char*)(Path.filename().string().data());
+	}
+
+	string str = Path.string();
+	string resultStr = "";
+
+	for (char c : str)
+	{
+		if (c == '/')
+		{
+			break;
+		}
+
+		resultStr += c;
+	}
+
+	return (char*)(resultStr.data());
+}
 
 void CopyToFile(const FString& FromFile, ofstream& ToFile)
 {
@@ -45,9 +67,9 @@ void CopyToFile(const FString& FromFile, ofstream& ToFile)
 	}
 }
 
-void ConvertFileToMP4(const FString& Filename)
+void ConvertFileToMP4(const FString& Filename, const FString& OutputFile)
 {
-	Muxer* muxer = new Muxer(MP4_OUPUT_NAME);
+	Muxer* muxer = new Muxer(OutputFile);
 
 	VideoCodec* codec = new VideoCodec(AV_CODEC_ID_H264);
 
@@ -147,7 +169,11 @@ void RecursiveFindAndExecute(const FString& PWD)
 				}
 
 				cout << "Vytvareni MP4 z nove vytvoreneho balicku DVD" << endl;
-				ConvertFileToMP4(finalFileName);
+
+				FString outputFilename = PWD;
+				outputFilename += "/";
+				outputFilename += GetLastPart({(char*)PWD});
+				ConvertFileToMP4(finalFileName, outputFilename);
 
 				cout << "Mazani vytvoreneho balicku DVD" << endl;
 				cout << endl;
@@ -180,7 +206,6 @@ int main(void)
 
 	cout << "V pripade chyb nebo problemu urcite napis nebo zavolej" << endl;
 	cout << "Jan Kristian Fisera" << endl;
-	cout << "Tel: 775569889" << endl;
 	cout << "Email: krisfis@email.cz" << endl;
 	cout << endl;
 
@@ -192,4 +217,3 @@ int main(void)
 #undef PARENT_DIRECTORY_NAME
 #undef VOB_EXTENSION
 #undef VOB_OUTPUT_NAME
-#undef MP4_OUPUT_NAME
