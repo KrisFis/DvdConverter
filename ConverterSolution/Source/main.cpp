@@ -19,56 +19,18 @@
 #include <filesystem>
 #include <time.h>
 
+// ConverterProject
+#include "ConverterUtilities.h"
+#include "ConverterMacros.h"
+
 using namespace std;
 using namespace ffmpegcpp;
 using namespace sal;
+using namespace FConverterUtilities;
 namespace fs = std::filesystem;
-
-constexpr int32 OneGB = 1048576000;
-
-typedef long long int64;
-typedef unsigned long long uint64;
-
-#define PARENT_DIRECTORY_NAME "VIDEO_TS"
-#define VOB_EXTENSION ".VOB"
-#define MKV_EXTENSION ".MKV"
-#define PACKAGE_NAME "VTS_PACKAGE.VOB"
-
-#ifdef _DEBUG
-	#define DEBUG_COMMAND(command) command
-#else
-	#define DEBUG_COMMAND(command)
-#endif
 
 uint16 NumberOfPackedVideos = 0;
 uint16 NumberOfConvertedVideos = 0;
-
-FString AddFilename(const FString& ParentDirectory, const fs::path& Path)
-{
-	FString filename = ParentDirectory;
-	filename += "/";
-	filename += (char*)(Path.filename().string().data());
-
-	return filename;
-}
-
-FString GetLastPart(const fs::path& Path)
-{
-	if (fs::is_directory(Path))
-	{
-		return (char*)(Path.filename().string().data());
-	}
-
-	string str = Path.string();
-
-	size_t foundIdx = str.find_last_of('/');
-	if (foundIdx != string::npos)
-	{
-		return (char*)(str.substr(++foundIdx).data());
-	}
-
-	return (char*)(Path.string().data());
-}
 
 void CopyToFile(const FString& FromFile, ofstream& ToFile)
 {
@@ -90,10 +52,10 @@ void ConvertFileToMKV(const FString& Filename, const FString& OutputFile)
 
 	Muxer* muxer = new Muxer(OutputFile);
 
-	VideoCodec* v_codec = new VideoCodec(AVCodecID::AV_CODEC_ID_H264);
+	VideoCodec* v_codec = new VideoCodec("libx264");
 	v_codec->SetOption("crf", 21);
 
-	AudioCodec* a_codec = new AudioCodec(AVCodecID::AV_CODEC_ID_MP3);
+	AudioCodec* a_codec = new AudioCodec(muxer->GetDefaultAudioFormat()->id); // "libmp3lame"
 	a_codec->SetOption("qscale:a", 2);
 
 // 	Codec* s_codec = new Codec(AV_CODEC_ID_DVD_SUBTITLE);
@@ -142,27 +104,22 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 
 	for (const auto& entry : fs::directory_iterator((char*)DirectoryPath))
 	{
+		FString newPath = (char*)ExtendFilename(DirectoryPath, entry.path());
+
 		if (entry.path().extension() == VOB_EXTENSION)
 		{
-			fs::path debug_path = {(char*)AddFilename(DirectoryPath, entry.path())};
-			FString last_part = GetLastPart(debug_path);
-			size_t fileSize = fs::file_size(entry.path());
-
-			if (last_part == PACKAGE_NAME &&
-				fileSize >= OneGB)
+			if (GetLastPart(newPath) == PACKAGE_NAME &&
+				fs::file_size(StringToPath(newPath)) >= ONE_GB)
 			{
 				cout << "Byl nalezen predchozi balicek!" << endl;
 				cout << "Preskakuji vytvareni balicku.." << endl;
 				partsForPackage = INDEX_NONE;
 				break;
 			}
-			else
+			else if(forceUse || fs::file_size(entry.path()) >= ONE_GB)
 			{
-				if (forceUse || fs::file_size(entry.path()) >= OneGB)
-				{
-					partsForPackage++;
-					forceUse = true;
-				}
+				++partsForPackage;
+				forceUse = true;
 			}
 		}
 		else
@@ -194,17 +151,17 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 
 	for (const auto& entry : fs::directory_iterator((char*)DirectoryPath))
 	{
-		cout << "Vytvarení balicku: " << ((float)tmpPackagePartsNumber / (float)partsForPackage) * 100 << endl;
+		FString newPath = (char*)ExtendFilename(DirectoryPath, entry.path());
 
-		if (entry.path().extension() == VOB_EXTENSION)
+		if (entry.path().extension() == VOB_EXTENSION &&
+			GetLastPart(newPath) != PACKAGE_NAME)
 		{
-			if (forceUse || fs::file_size(entry.path()) >= OneGB)
+			if (forceUse || fs::file_size(StringToPath(newPath)) >= ONE_GB)
 			{
-				FString filename = DirectoryPath;
-				filename += "/";
-				filename += (char*)(entry.path().filename().string().data());
+				cout << "Vytvareni balicku: " << ((float)tmpPackagePartsNumber / (float)partsForPackage) * 100 << " %" << endl;
 
-				CopyToFile(filename, resultFile);
+				CopyToFile(newPath, resultFile);
+				++tmpPackagePartsNumber;
 				forceUse = true;
 			}
 		}
@@ -227,21 +184,23 @@ void RecursiveFindAndExecute(const FString& PWD)
 {
 	for (const auto& entry : fs::directory_iterator((char*)PWD))
 	{
-		DEBUG_COMMAND(LogMsg((char*)(entry.path().string().data())));
+		FString newPath = (char*)ExtendFilename(PWD, entry.path());
 
-		if (fs::is_directory(entry.path()))
+		DEBUG_COMMAND(LogMsg(newPath));
+
+		if (fs::is_directory(StringToPath(newPath)))
 		{
 			FString directoryName = PWD;
 			if(directoryName != "./") { directoryName += "/"; }
-			directoryName += GetLastPart(entry.path());
+			directoryName += GetLastPart(newPath);
 
-			if (GetLastPart(entry.path()) != PARENT_DIRECTORY_NAME)
+			if (GetLastPart(newPath) != PARENT_DIRECTORY_NAME)
 			{
 				RecursiveFindAndExecute(directoryName);
 			}
 			else
 			{
-				cout << "Nalezeno nove DVD pro konverzi se jmenem: " << (char*)(GetLastPart({(char*)PWD})) << endl;
+				cout << "Nalezeno nove DVD pro konverzi se jmenem: " << (char*)(GetLastPart(PWD)) << endl;
 				cout << endl;
 				cout << "Vytvareni jednotneho DVD balicku" << endl;
 
@@ -251,11 +210,11 @@ void RecursiveFindAndExecute(const FString& PWD)
 					return;
 				}
 
-				cout << "Vytvareni MKV z nove vytvoreneho balicku DVD" << endl;
+				cout << "Vytvareni MKV z balicku DVD" << endl;
 
 				FString outputFilename = PWD;
 				outputFilename += "/";
-				outputFilename += GetLastPart({(char*)PWD});
+				outputFilename += GetLastPart(newPath);
 				outputFilename += MKV_EXTENSION;
 				ConvertFileToMKV(finalFileName, outputFilename);
 
@@ -303,8 +262,3 @@ int main(void)
 
 	return 0;
 }
-
-#undef PARENT_DIRECTORY_NAME
-#undef VOB_EXTENSION
-#undef MKV_EXTENSION
-#undef PACKAGE_NAME
