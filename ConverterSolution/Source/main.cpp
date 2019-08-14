@@ -15,6 +15,7 @@
 #include <fstream>
 #include <stdlib.h>
 #include <filesystem>
+#include <time.h>
 
 using namespace std;
 using namespace ffmpegcpp;
@@ -28,6 +29,7 @@ typedef unsigned long long uint64;
 
 #define PARENT_DIRECTORY_NAME "VIDEO_TS"
 #define VOB_EXTENSION ".VOB"
+#define MP4_EXTENSION ".mp4"
 #define VOB_OUTPUT_NAME "outputVideo.vob"
 
 uint16 NumberOfPackedVideos = 0;
@@ -69,6 +71,8 @@ void CopyToFile(const FString& FromFile, ofstream& ToFile)
 
 void ConvertFileToMP4(const FString& Filename, const FString& OutputFile)
 {
+	cout << endl;
+
 	Muxer* muxer = new Muxer(OutputFile);
 
 	VideoCodec* codec = new VideoCodec(AV_CODEC_ID_H264);
@@ -93,6 +97,8 @@ void ConvertFileToMP4(const FString& Filename, const FString& OutputFile)
 	delete codec;
 	delete encoder;
 	delete demuxer;
+
+	cout << endl;
 }
 
 FString CreateOutputVideo(const FString& DirectoryPath)
@@ -123,8 +129,6 @@ FString CreateOutputVideo(const FString& DirectoryPath)
 				filename += "/";
 				filename += (char*)(entry.path().filename().string().data());
 
-				LogMsg(filename);
-
 				CopyToFile(filename, resultFile);
 				forceUse = true;
 			}
@@ -150,15 +154,17 @@ void RecursiveFindAndExecute(const FString& PWD)
 	{
 		if (fs::is_directory(entry.path()))
 		{
-			FString directoryName = (char*)(entry.path().string().data());
+			FString directoryName = PWD;
+			if(directoryName != "./") { directoryName += "/"; }
+			directoryName += GetLastPart(entry.path());
 
-			if (directoryName != PARENT_DIRECTORY_NAME)
+			if (GetLastPart(entry.path()) != PARENT_DIRECTORY_NAME)
 			{
 				RecursiveFindAndExecute(directoryName);
 			}
 			else
 			{
-				cout << "Nalezeno nove DVD pro konverzi se jmenem: " << PWD << endl;
+				cout << "Nalezeno nove DVD pro konverzi se jmenem: " << (char*)(GetLastPart({(char*)PWD})) << endl;
 				cout << endl;
 				cout << "Vytvareni jednotneho DVD balicku" << endl;
 
@@ -173,6 +179,7 @@ void RecursiveFindAndExecute(const FString& PWD)
 				FString outputFilename = PWD;
 				outputFilename += "/";
 				outputFilename += GetLastPart({(char*)PWD});
+				outputFilename += MP4_EXTENSION;
 				ConvertFileToMP4(finalFileName, outputFilename);
 
 				cout << "Mazani vytvoreneho balicku DVD" << endl;
@@ -187,6 +194,8 @@ void RecursiveFindAndExecute(const FString& PWD)
 
 int main(void)
 {
+	time_t programTimer = time(NULL);
+
 	cout << "Start programu.." << endl;
 	cout << endl;
 	cout << "Hledani slozek s DVD zaznamy.." << endl;
@@ -202,6 +211,8 @@ int main(void)
 	cout << "Pocet sbalenych DVD zaznamu: " << NumberOfConvertedVideos << " !" << endl;
 	cout << "Pocet vytvorenych MP4: " << NumberOfConvertedVideos << " !" << endl;
 	cout << endl;
+	cout << "Celkovy cas behu programu: " << difftime(programTimer, time(NULL)) << endl;
+	cout << endl;
 	cout << endl;
 
 	cout << "V pripade chyb nebo problemu urcite napis nebo zavolej" << endl;
@@ -216,4 +227,5 @@ int main(void)
 
 #undef PARENT_DIRECTORY_NAME
 #undef VOB_EXTENSION
+#undef MP4_EXTENSION
 #undef VOB_OUTPUT_NAME
