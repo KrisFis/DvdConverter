@@ -18,12 +18,18 @@
     <ClCompile Include="Source\ConverterUtilities.cpp">
       <Filter>Source\Private</Filter>
     </ClCompile>
+    <ClCompile Include="Source\ConverterPass.cpp">
+      <Filter>Source\Private</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\ConverterUtilities.h">
       <Filter>Source\Public</Filter>
     </ClInclude>
     <ClInclude Include="Source\ConverterMacros.h">
+      <Filter>Source\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\ConverterPass.h">
       <Filter>Source\Public</Filter>
     </ClInclude>
   </ItemGroup>

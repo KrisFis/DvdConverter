@@ -2,15 +2,7 @@
 // AlternitySTD
 #include <EssentialsMethods.h>
 #include <AltString.h>
-
-// FFMPEG-cpp
-#include <Muxing/Muxer.h>
-#include <Codecs/VideoCodec.h>
-#include <Frame Sinks/VideoEncoder.h>
-#include <Frame Sinks/Filter.h>
-#include <Sources/Demuxer.h>
-#include <Codecs/AudioCodec.h>
-#include <Frame Sinks/AudioEncoder.h>
+using namespace sal;
 
 // STD
 #include <iostream>
@@ -18,16 +10,15 @@
 #include <stdlib.h>
 #include <filesystem>
 #include <time.h>
+using namespace std;
+namespace fs = std::filesystem;
 
 // ConverterProject
 #include "ConverterUtilities.h"
 #include "ConverterMacros.h"
-
-using namespace std;
-using namespace ffmpegcpp;
-using namespace sal;
+#include "ConverterPass.h"
 using namespace FConverterUtilities;
-namespace fs = std::filesystem;
+using namespace FConvertPass;
 
 uint16 NumberOfPackedVideos = 0;
 uint16 NumberOfConvertedVideos = 0;
@@ -44,48 +35,6 @@ void CopyToFile(const FString& FromFile, ofstream& ToFile)
 
 		file.close();
 	}
-}
-
-void ConvertFileToMKV(const FString& Filename, const FString& OutputFile)
-{
-	cout << endl;
-
-	Muxer* muxer = new Muxer(OutputFile);
-
-	VideoCodec* v_codec = new VideoCodec("libx264");
-	v_codec->SetOption("crf", 21);
-
-	AudioCodec* a_codec = new AudioCodec(muxer->GetDefaultAudioFormat()->id); // "libmp3lame"
-	a_codec->SetOption("qscale:a", 2);
-
-// 	Codec* s_codec = new Codec(AV_CODEC_ID_DVD_SUBTITLE);
-// 	s_codec->SetOption("copy", 1);
-
-	VideoEncoder* v_encoder = new VideoEncoder(v_codec, muxer);
-
-	AudioEncoder* a_encoder = new AudioEncoder(a_codec, muxer);
-
-	Demuxer* demuxer = new Demuxer(Filename);
-	demuxer->DecodeBestVideoStream(v_encoder);
-	demuxer->DecodeBestAudioStream(a_encoder);
-
-	demuxer->PreparePipeline();
-
-	while (!demuxer->IsDone())
-	{
-		demuxer->Step();
-	}
-
-	muxer->Close();
-
-	++NumberOfConvertedVideos;
-
-	delete muxer;
-	delete v_codec;
-	delete v_encoder;
-	delete demuxer;
-
-	cout << endl;
 }
 
 FString CreateOutputVideo(const FString& DirectoryPath)
@@ -204,24 +153,28 @@ void RecursiveFindAndExecute(const FString& PWD)
 				cout << endl;
 				cout << "Vytvareni jednotneho DVD balicku" << endl;
 
-				FString finalFileName = CreateOutputVideo(directoryName);
-				if (finalFileName.IsEmpty())
+				FString inputFilePath = CreateOutputVideo(directoryName);
+				if (inputFilePath.IsEmpty())
 				{
 					return;
 				}
 
 				cout << "Vytvareni MKV z balicku DVD" << endl;
 
-				FString outputFilename = PWD;
-				outputFilename += "/";
-				outputFilename += GetLastPart(newPath);
-				outputFilename += MKV_EXTENSION;
-				ConvertFileToMKV(finalFileName, outputFilename);
+				FString outputFilePath = PWD;
+				outputFilePath += "/";
+				outputFilePath += GetLastPart(PWD);
+				outputFilePath += MKV_EXTENSION;
+
+				cout << endl;
+				ConvertToMKV(inputFilePath, outputFilePath);
+				++NumberOfConvertedVideos;
+				cout << endl;
 
 				cout << "Mazani vytvoreneho balicku DVD" << endl;
 				cout << endl;
 #ifdef _RELEASE
-				fs::remove({ (char*)finalFileName });
+				fs::remove({ (char*)inputFilePath });
 #endif
 			}
 		}
@@ -236,6 +189,7 @@ int main(void)
 	cout << endl;
 	cout << "Hledani slozek s DVD zaznamy.." << endl;
 	cout << endl;
+
 
 	DEBUG_COMMAND(LogWait());
 

@@ -156,11 +156,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\ConverterPass.cpp" />
     <ClCompile Include="Source\ConverterUtilities.cpp" />
     <ClCompile Include="Source\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\ConverterMacros.h" />
+    <ClInclude Include="Source\ConverterPass.h" />
     <ClInclude Include="Source\ConverterUtilities.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
