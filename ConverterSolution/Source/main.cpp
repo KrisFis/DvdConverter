@@ -23,6 +23,8 @@ using namespace FConvertPass;
 uint16 NumberOfPackedVideos = 0;
 uint16 NumberOfConvertedVideos = 0;
 
+EOperationMode ExecMode = EOperationMode::OnlyPackage;
+
 void CopyToFile(const FString& FromFile, ofstream& ToFile)
 {
 	DEBUG_COMMAND(LogMsg("Copying file: "));
@@ -158,6 +160,8 @@ void RecursiveFindAndExecute(const FString& PWD)
 				{
 					return;
 				}
+
+				if (ExecMode != EOperationMode::Convert) return;
 
 				cout << "Vytvareni MKV z balicku DVD" << endl;
 

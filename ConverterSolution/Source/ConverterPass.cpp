@@ -20,24 +20,25 @@ namespace FConvertPass
 {
 	void ConvertToMKV(const sal::FString& InputPath, const sal::FString& OutputPath)
 	{
+		// Muxer
 		Muxer* muxer = new Muxer(OutputPath);
 
+		// Codecs
 		VideoCodec* v_codec = new VideoCodec("libx264");
-		v_codec->SetOption("crf", 21);
+		AudioCodec* a_codec = new AudioCodec("libmp3lame");
 
-	//	AudioCodec* a_codec = new AudioCodec(muxer->GetDefaultAudioFormat()->id); // "libmp3lame"
-	//	a_codec->SetOption("qscale:a", 2);
+		// Codecs options
+		v_codec->SetOption("copy", 1);
+		a_codec->SetOption("copy", 1);
 
-	// 	Codec* s_codec = new Codec(AV_CODEC_ID_DVD_SUBTITLE);
-	// 	s_codec->SetOption("copy", 1);
-
+		// Encoders
 		VideoEncoder* v_encoder = new VideoEncoder(v_codec, muxer);
+		AudioEncoder* a_encoder = new AudioEncoder(a_codec, muxer);
 
-		//AudioEncoder* a_encoder = new AudioEncoder(a_codec, muxer);
-
+		// Demuxer
 		Demuxer* demuxer = new Demuxer(InputPath);
 		demuxer->DecodeBestVideoStream(v_encoder);
-		//demuxer->DecodeBestAudioStream(a_encoder);
+		demuxer->DecodeBestAudioStream(a_encoder);
 
 		demuxer->PreparePipeline();
 
